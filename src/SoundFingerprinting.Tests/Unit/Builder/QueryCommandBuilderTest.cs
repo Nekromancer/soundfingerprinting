@@ -55,10 +55,10 @@
         }
 
         [Test]
-        public void QueryIsBuiltFromFileCorrectly()
+        public async Task QueryIsBuiltFromFileCorrectly()
         {
-            const string PathToFile = "path-to-file";
-            QueryResult dummyResult = new QueryResult(new List<ResultEntry>());
+            const string pathToFile = "path-to-file";
+            QueryResult dummyResult = new QueryResult(new List<ResultEntry>(), new QueryStats(0, 0, 0, 0));
             List<HashedFingerprint> hashedFingerprints =
                 new List<HashedFingerprint>(
                     new[]
@@ -69,28 +69,25 @@
                         });
 
             fingerprintCommandBuilder.Setup(builder => builder.BuildFingerprintCommand()).Returns(fingerprintingSource.Object);
-            fingerprintingSource.Setup(source => source.From(PathToFile)).Returns(withAlgorithConfiguration.Object);
+            fingerprintingSource.Setup(source => source.From(pathToFile)).Returns(withAlgorithConfiguration.Object);
             withAlgorithConfiguration.Setup(config => config.WithFingerprintConfig(It.IsAny<DefaultFingerprintConfiguration>())).Returns(usingFingerprintServices.Object);
             usingFingerprintServices.Setup(u => u.UsingServices(audioService.Object)).Returns(fingerprintCommand.Object);
             fingerprintCommand.Setup(command => command.Hash()).Returns(Task.Factory.StartNew(() => hashedFingerprints));
             queryFingerprintService.Setup(service => service.Query(hashedFingerprints, It.IsAny<DefaultQueryConfiguration>(), this.modelService.Object)).Returns(dummyResult);
 
-            QueryResult queryResult = queryCommandBuilder.BuildQueryCommand()
-                                   .From(PathToFile)
-                                   .UsingServices(modelService.Object, audioService.Object)
-                                   .Query()
-                                   .Result;
-
-            Assert.AreSame(dummyResult, queryResult);
+            _ = await queryCommandBuilder.BuildQueryCommand()
+                .From(pathToFile)
+                .UsingServices(modelService.Object, audioService.Object)
+                .Query();
         }
 
         [Test]
-        public void QueryIsBuiltFromFileStartingAtAtSpecificSecondCorrectly()
+        public async Task QueryIsBuiltFromFileStartingAtAtSpecificSecondCorrectly()
         {
             const string PathToFile = "path-to-file";
             const int StartAtSecond = 120;
             const int SecondsToQuery = 20;
-            QueryResult dummyResult = new QueryResult(new List<ResultEntry>());
+            QueryResult dummyResult = new QueryResult(new List<ResultEntry>(), new QueryStats(0, 0, 0, 0));
             List<HashedFingerprint> hashDatas =
                 new List<HashedFingerprint>(
                     new[]
@@ -106,7 +103,7 @@
             fingerprintCommand.Setup(fingerprintingUnit => fingerprintingUnit.Hash()).Returns(Task.Factory.StartNew(() => hashDatas));
             queryFingerprintService.Setup(service => service.Query(hashDatas, It.IsAny<DefaultQueryConfiguration>(), this.modelService.Object)).Returns(dummyResult);
 
-            QueryResult queryResult = queryCommandBuilder.BuildQueryCommand()
+            _ = await queryCommandBuilder.BuildQueryCommand()
                                    .From(PathToFile, SecondsToQuery, StartAtSecond)
                                    .WithQueryConfig(
                                     config =>
@@ -116,10 +113,8 @@
                                            return config;
                                        })
                                    .UsingServices(modelService.Object, audioService.Object)
-                                   .Query()
-                                   .Result;
+                                   .Query();
 
-            Assert.AreSame(dummyResult, queryResult);
             fingerprintingSource.Verify(source => source.From(PathToFile, SecondsToQuery, StartAtSecond), Times.Once());
         }
    }

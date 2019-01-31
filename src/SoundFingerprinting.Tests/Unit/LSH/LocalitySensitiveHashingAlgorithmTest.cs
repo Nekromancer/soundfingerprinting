@@ -1,55 +1,84 @@
 ﻿namespace SoundFingerprinting.Tests.Unit.LSH
 {
+    using System;
     using System.Linq;
-
-    using Moq;
-
     using NUnit.Framework;
 
     using SoundFingerprinting.Configuration;
     using SoundFingerprinting.Data;
+    using SoundFingerprinting.DAO;
+    using SoundFingerprinting.InMemory;
     using SoundFingerprinting.LSH;
     using SoundFingerprinting.Math;
     using SoundFingerprinting.MinHash;
     using SoundFingerprinting.Utils;
 
     [TestFixture]
-    public class LocalitySensitiveHashingAlgorithmTest : AbstractTest
+    public class LocalitySensitiveHashingAlgorithmTest
     {
-        private LocalitySensitiveHashingAlgorithm lshAlgorithm;
-        private Mock<IMinHashService> minHashService;
-        private Mock<IHashConverter> hashConverter;
-
-        [SetUp]
-        public void SetUp()
+        [Test]
+        public void FingerprintsCantMatchUniformlyAtRandom()
         {
-            minHashService = new Mock<IMinHashService>(MockBehavior.Strict);
-            hashConverter = new Mock<IHashConverter>(MockBehavior.Strict);
-            lshAlgorithm = new LocalitySensitiveHashingAlgorithm(minHashService.Object, hashConverter.Object);
-        }
+            var lshAlgorithm = new LocalitySensitiveHashingAlgorithm(new MinHashService(new MaxEntropyPermutations()), new HashConverter());
 
-        [TearDown]
-        public void TearDown()
-        {
-            minHashService.VerifyAll();
-            hashConverter.VerifyAll();
+            var random = new Random();
+
+            var storage = new RAMStorage(25, new IntModelReferenceProvider());
+            
+            float one = 8192f / 5512;
+            var config = new DefaultHashingConfig { NumberOfLSHTables = 25, NumberOfMinHashesPerTable = 4, HashBuckets = 0 };
+            
+            var track = new ModelReference<int>(1);
+            for (int i = 0; i < 1000; ++i)
+            {
+                int[] trues = Enumerable.Range(0, 200).Select(entry => random.Next(0, 8191)).ToArray();
+                var schema = new TinyFingerprintSchema(8192).SetTrueAt(trues);
+                var hash = lshAlgorithm.Hash(new Fingerprint(schema, i * one, (uint)i), config, Enumerable.Empty<string>());
+                storage.AddHashedFingerprint(hash, track);
+            }
+
+            for (int i = 0; i < 100; ++i)
+            {
+                int[] trues = Enumerable.Range(0, 200).Select(entry => random.Next(0, 8191)).ToArray();
+                var schema = new TinyFingerprintSchema(8192).SetTrueAt(trues);
+                var hash = lshAlgorithm.Hash(new Fingerprint(schema, i * one, (uint)i), config, Enumerable.Empty<string>());
+                for (int j = 0; j < 25; ++j)
+                {
+                    var ids = storage.GetSubFingerprintsByHashTableAndHash(j, hash.HashBins[j]);
+                    Assert.IsFalse(ids.Any());
+                }
+            }
         }
 
         [Test]
-        public void FingerprintParametersAreCopiedToHashedFingerprintObject()
+        public void DistributionOfHashesHasToBeUniform()
         {
-            var bytes = new byte[] { 1, 0, 1, 0, 0, 6, 0, 1, 0, 9, 0, 2, 8, 7, 6, 3 };
-            hashConverter.Setup(converter => converter.ToInts(bytes, 4)).Returns(value: new[]{1,2,3,4});
-            minHashService.Setup(service => service.Hash(It.IsAny<IEncodedFingerprintSchema>(), 16)).Returns(bytes);
+            var lshAlgorithm = new LocalitySensitiveHashingAlgorithm(new MinHashService(new MaxEntropyPermutations()), new HashConverter());
 
-            var hash = lshAlgorithm.Hash(
-                new Fingerprint(new TinyFingerprintSchema(8192), 5 * 0.928f, 5),
-                new DefaultHashingConfig { NumberOfLSHTables = 4, NumberOfMinHashesPerTable = 4, HashBuckets = 0 },
-                Enumerable.Empty<string>());
+            var random = new Random();
 
-            Assert.AreEqual(5, hash.SequenceNumber);
-            Assert.AreEqual(5 * 0.928, hash.StartsAt, Epsilon);
-            CollectionAssert.AreEqual(new[] { 1, 2, 3, 4 }, hash.HashBins);
+            var storage = new RAMStorage(25, new IntModelReferenceProvider());
+            
+            float one = 8192f / 5512;
+            var config = new DefaultHashingConfig { NumberOfLSHTables = 25, NumberOfMinHashesPerTable = 4, HashBuckets = 0 };
+            
+            var track = new ModelReference<int>(1);
+            int l = 100000;
+            for (int i = 0; i < l; ++i)
+            {
+                int[] trues = Enumerable.Range(0, 200).Select(entry => random.Next(0, 8191)).ToArray();
+                var schema = new TinyFingerprintSchema(8192).SetTrueAt(trues);
+                var hash = lshAlgorithm.Hash(new Fingerprint(schema, i * one, (uint)i), config, Enumerable.Empty<string>());
+                storage.AddHashedFingerprint(hash, track);
+            }
+
+            var distribution = storage.HashCountsPerTable;
+
+            foreach (var hashPerTable in distribution)
+            {
+                double collisions = (double) (l - hashPerTable) / l;
+                Assert.IsTrue(collisions <= 0.01d, $"Less than 1% of collisions across 100K hashes: {collisions}");
+            }
         }
     }
 }

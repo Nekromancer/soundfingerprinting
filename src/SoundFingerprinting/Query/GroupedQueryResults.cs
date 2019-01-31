@@ -3,9 +3,6 @@
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq;
-    using System.Runtime.CompilerServices;
-
-    using SoundFingerprinting.Configuration;
     using SoundFingerprinting.Data;
     using SoundFingerprinting.DAO;
     using SoundFingerprinting.DAO.Data;
@@ -13,44 +10,42 @@
 
     public class GroupedQueryResults
     {
-        private readonly IEnumerable<HashedFingerprint> queryFingerprints;
+        private readonly object lockObject = new object();
+
+        private readonly double queryLength;
         private readonly SortedDictionary<uint, Candidates> matches;
         private readonly ConcurrentDictionary<IModelReference, int> similaritySumPerTrack;
 
-        public GroupedQueryResults(IEnumerable<HashedFingerprint> queryFingerprints)
+        public GroupedQueryResults(double queryLength)
         {
-            this.queryFingerprints = queryFingerprints;
+            this.queryLength = queryLength;
             matches = new SortedDictionary<uint, Candidates>();
             similaritySumPerTrack = new ConcurrentDictionary<IModelReference, int>();
         }
 
-        public double GetQueryLength(FingerprintConfiguration configuration)
+        public double GetQueryLength()
         {
-            return CalculateExactQueryLength(queryFingerprints, configuration);
+            return queryLength;
         }
 
-        [MethodImpl(MethodImplOptions.Synchronized)]
         public void Add(HashedFingerprint hashedFingerprint, SubFingerprintData subFingerprintData, int hammingSimilarity)
         {
-            similaritySumPerTrack.AddOrUpdate(subFingerprintData.TrackReference, hammingSimilarity, (key, oldHamming) => oldHamming + hammingSimilarity);
-            var matchedWith = new MatchedWith(hashedFingerprint.StartsAt, subFingerprintData.SequenceAt, hammingSimilarity);
-            if (!matches.TryGetValue(hashedFingerprint.SequenceNumber, out var matched))
+            lock (lockObject)
             {
-                matches.Add(hashedFingerprint.SequenceNumber, new Candidates(subFingerprintData.TrackReference, matchedWith));
-            }
-            else
-            {
-                matched.AddOrUpdateNewMatch(subFingerprintData.TrackReference, matchedWith);
+                similaritySumPerTrack.AddOrUpdate(subFingerprintData.TrackReference, hammingSimilarity, (key, oldHamming) => oldHamming + hammingSimilarity);
+                var matchedWith = new MatchedWith(hashedFingerprint.StartsAt, subFingerprintData.SequenceAt, hammingSimilarity);
+                if (!matches.TryGetValue(hashedFingerprint.SequenceNumber, out var matched))
+                {
+                    matches.Add(hashedFingerprint.SequenceNumber, new Candidates(subFingerprintData.TrackReference, matchedWith));
+                }
+                else
+                {
+                    matched.AddNewMatch(subFingerprintData.TrackReference, matchedWith);
+                }
             }
         }
 
-        public bool ContainsMatches
-        {
-            get
-            {
-                return similaritySumPerTrack.Any();
-            }
-        }
+        public bool ContainsMatches => similaritySumPerTrack.Any();
 
         public int SubFingerprintsCount
         {
@@ -60,13 +55,7 @@
             }
         }
 
-        public int TracksCount
-        {
-            get
-            {
-                return similaritySumPerTrack.Count;
-            }
-        }
+        public int TracksCount => similaritySumPerTrack.Count;
 
         public IEnumerable<IModelReference> GetTopTracksByHammingSimilarity(int count)
         {
@@ -93,30 +82,20 @@
 
         public MatchedWith GetBestMatchForTrack(IModelReference trackReference)
         {
-            return GetMatchesForTrackOrderedByQueryAt(trackReference).OrderByDescending(matchedWith => matchedWith.HammingSimilarity).FirstOrDefault();
+            return GetMatchesForTrack(trackReference)
+                                .OrderByDescending(matchedWith => matchedWith.HammingSimilarity)
+                                .FirstOrDefault();
         }
 
-        public IEnumerable<MatchedWith> GetMatchesForTrackOrderedByQueryAt(IModelReference trackReference)
+        public IEnumerable<MatchedWith> GetMatchesForTrack(IModelReference trackReference)
         {
-            foreach(var valuePair in matches)
+            foreach (var candidates in matches.Values)
             {
-                if (valuePair.Value.TryGetMatchesForTrack(trackReference, out var matchedWith))
+                foreach (var match in candidates.GetMatchesForTrack(trackReference))
                 {
-                    yield return matchedWith;
+                    yield return match;
                 }
             }
-        }
-
-        private static double CalculateExactQueryLength(IEnumerable<HashedFingerprint> hashedFingerprints, FingerprintConfiguration fingerprintConfiguration)
-        {
-            double startsAt = double.MaxValue, endsAt = double.MinValue;
-            foreach (var hashedFingerprint in hashedFingerprints)
-            {
-                startsAt = System.Math.Min(startsAt, hashedFingerprint.StartsAt);
-                endsAt = System.Math.Max(endsAt, hashedFingerprint.StartsAt);
-            }
-
-            return SubFingerprintsToSeconds.AdjustLengthToSeconds(endsAt, startsAt, fingerprintConfiguration.FingerprintLengthInSeconds);
         }
     }
 }

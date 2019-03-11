@@ -11,7 +11,7 @@
         public List<Matches> FindAllIncreasingTrackSequences(IEnumerable<MatchedWith> matches, double permittedGap)
         {
             var matchedWiths = new List<Matches>();
-            var list = matches.OrderBy(match => match.QueryAt)
+            var list = matches.OrderBy(match => match.QueryMatchAt)
                               .ToList();
             while (list.Any())
             {
@@ -20,7 +20,7 @@
                 var longestSequence = FindLongestSequence(orderedByQueryAt, maxLength, max, maxIndex, permittedGap).ToList();
                 matchedWiths.Add(new Matches(longestSequence));
                 list = list.Except(longestSequence)
-                           .OrderBy(match => match.QueryAt)
+                           .OrderBy(match => match.QueryMatchAt)
                            .ToList();
             }
 
@@ -38,7 +38,7 @@
                 if (maxLength[i].Length == max)
                 {
                     var prev = lis.Peek();
-                    if (Math.Abs(prev.ResultAt - maxLength[i].ResultAt) <= permittedGap)
+                    if (Math.Abs(prev.TrackMatchAt - maxLength[i].ResultAt) <= permittedGap)
                     {
                         lis.Push(matches[i]);
                         max--;
@@ -58,7 +58,7 @@
 
             for (int i = 0; i < maxLength.Length; ++i)
             {
-                maxLength[i] = new MaxAt(0, matches[i].ResultAt);
+                maxLength[i] = new MaxAt(0, matches[i].TrackMatchAt);
             }
             
             max = 0;
@@ -68,14 +68,14 @@
             {
                 for (int j = 0; j < i; ++j)
                 {
-                    if (matches[j].ResultAt < matches[i].ResultAt && maxLength[j].Length + 1 > maxLength[i].Length)
+                    if (matches[j].TrackMatchAt < matches[i].TrackMatchAt && maxLength[j].Length + 1 > maxLength[i].Length)
                     {
-                        float queryAt = Math.Abs(matches[i].QueryAt - matches[j].QueryAt);
-                        float resultAt = Math.Abs(matches[i].ResultAt - matches[j].ResultAt);
+                        float queryAt = Math.Abs(matches[i].QueryMatchAt - matches[j].QueryMatchAt);
+                        float resultAt = Math.Abs(matches[i].TrackMatchAt - matches[j].TrackMatchAt);
                         
                         if (queryAt <= permittedGap && resultAt <= permittedGap)
                         {
-                            maxLength[i] = new MaxAt(maxLength[j].Length + 1, matches[i].ResultAt);
+                            maxLength[i] = new MaxAt(maxLength[j].Length + 1, matches[i].TrackMatchAt);
                             if (maxLength[i].Length > max)
                             {
                                 max = maxLength[i].Length;

@@ -1,7 +1,6 @@
 ﻿namespace SoundFingerprinting.DAO
 {
     using System;
-
     using ProtoBuf;
 
     [Serializable]
@@ -38,6 +37,11 @@
         public override int GetHashCode()
         {
             return Id.GetHashCode();
+        }
+
+        public override string ToString()
+        {
+            return $"ModelReference {nameof(Id)}: {Id}";
         }
     }
 }

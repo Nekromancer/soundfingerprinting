@@ -1,7 +1,6 @@
 namespace SoundFingerprinting.Tests.Unit.Query
 {
     using System.Collections.Generic;
-    using System.Configuration;
     using System.Linq;
     using NUnit.Framework;
     using SoundFingerprinting.Query;
@@ -38,8 +37,7 @@ namespace SoundFingerprinting.Tests.Unit.Query
         }
 
         [Test]
-        [Ignore("Chorus can match across different location, but since it's in the same track, it has to be merged")]
-        public void ShouldCollapseAsItIsContainedWithinItself()
+        public void ShouldIdentifyAsContainedWithinItself()
         {
             // q ------------------------ 
             // a ------------------------
@@ -48,7 +46,9 @@ namespace SoundFingerprinting.Tests.Unit.Query
             var a = GetMatches(0, 0, 120, 512f / 5512);
             var b = GetMatches(10, 20, 10, 512f / 5512);
             
-            Assert.IsTrue(a.TryCollapseWith(b, 1.48d, out var c));
+            Assert.IsFalse(a.TryCollapseWith(b, 1.48d, out _));
+            Assert.IsTrue(a.Contains(b));
+            Assert.IsFalse(b.Contains(a));
         }
 
         [Test]

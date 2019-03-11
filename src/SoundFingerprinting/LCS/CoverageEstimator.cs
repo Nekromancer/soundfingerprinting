@@ -21,14 +21,14 @@
         /// <returns>Longest track region</returns>
         public static Coverage EstimateTrackCoverage(IEnumerable<MatchedWith> matchedWiths, double queryLength, double fingerprintLengthInSeconds)
         {
-            var matches = matchedWiths.OrderBy(with => with.ResultAt).ToList();
+            var matches = matchedWiths.OrderBy(with => with.TrackMatchAt).ToList();
 
             int minI = 0, maxI = 0, curMinI = 0, maxLength = 0;
             for (int i = 1; i < matches.Count; ++i)
             {
                 if (ConsecutiveMatchesAreLongerThanTheQuery(queryLength, matches, i, fingerprintLengthInSeconds))
                 {
-                    // potentialy a new start of best matched sequence
+                    // potentially a new start of best matched sequence
                     curMinI = i;
                 }
 
@@ -44,11 +44,11 @@
             var notCovered = GetNotCoveredLength(matches, trackRegion, fingerprintLengthInSeconds, out var bestMatch);
 
             // optimistic coverage length
-            double sourceCoverageLength = SubFingerprintsToSeconds.AdjustLengthToSeconds(matches[trackRegion.EndAt].ResultAt, matches[trackRegion.StartAt].ResultAt, fingerprintLengthInSeconds);
+            double sourceCoverageLength = SubFingerprintsToSeconds.AdjustLengthToSeconds(matches[trackRegion.EndAt].TrackMatchAt, matches[trackRegion.StartAt].TrackMatchAt, fingerprintLengthInSeconds);
             double queryMatchLength = sourceCoverageLength - notCovered; // exact length of matched fingerprints
 
-            double queryMatchStartsAt = matches[trackRegion.StartAt].QueryAt;
-            double trackMatchStartsAt = matches[trackRegion.StartAt].ResultAt;
+            double queryMatchStartsAt = matches[trackRegion.StartAt].QueryMatchAt;
+            double trackMatchStartsAt = matches[trackRegion.StartAt].TrackMatchAt;
 
             return new Coverage(queryMatchStartsAt, queryMatchLength, sourceCoverageLength, trackMatchStartsAt, GetTrackStartsAt(bestMatch), queryLength);
    
@@ -60,9 +60,9 @@
             bestMatch = orderedByResultAt[trackRegion.StartAt];
             for (int i = trackRegion.StartAt + 1; i <= trackRegion.EndAt; ++i)
             {
-                if (orderedByResultAt[i].ResultAt - orderedByResultAt[i - 1].ResultAt > fingerprintLengthInSeconds)
+                if (orderedByResultAt[i].TrackMatchAt - orderedByResultAt[i - 1].TrackMatchAt > fingerprintLengthInSeconds)
                 {
-                    notCovered += orderedByResultAt[i].ResultAt - (orderedByResultAt[i - 1].ResultAt + fingerprintLengthInSeconds);
+                    notCovered += orderedByResultAt[i].TrackMatchAt - (orderedByResultAt[i - 1].TrackMatchAt + fingerprintLengthInSeconds);
                 }
 
                 if (bestMatch.HammingSimilarity < orderedByResultAt[i].HammingSimilarity)
@@ -74,14 +74,14 @@
             return notCovered;
         }
 
-        private static bool ConsecutiveMatchesAreLongerThanTheQuery(double queryLength, List<MatchedWith> sortedMatches, int index, double fingerprintLengthInSeconds)
+        private static bool ConsecutiveMatchesAreLongerThanTheQuery(double queryLength, IReadOnlyList<MatchedWith> sortedMatches, int index, double fingerprintLengthInSeconds)
         {
-            return SubFingerprintsToSeconds.AdjustLengthToSeconds(sortedMatches[index].ResultAt, sortedMatches[index - 1].ResultAt, fingerprintLengthInSeconds) > queryLength;
+            return SubFingerprintsToSeconds.AdjustLengthToSeconds(sortedMatches[index].TrackMatchAt, sortedMatches[index - 1].TrackMatchAt, fingerprintLengthInSeconds) > queryLength;
         }
         
         private static double GetTrackStartsAt(MatchedWith bestMatch)
         {
-            return bestMatch.QueryAt - bestMatch.ResultAt;
+            return bestMatch.QueryMatchAt - bestMatch.TrackMatchAt;
         }
     }
 }

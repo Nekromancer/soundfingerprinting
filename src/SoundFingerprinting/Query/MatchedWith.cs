@@ -2,16 +2,16 @@
 {
     public class MatchedWith
     {
-        public MatchedWith(float queryAt, float resultAt, int hammingSimilarity)
+        public MatchedWith(float queryMatchAt, float trackMatchAt, int hammingSimilarity)
         {
-            QueryAt = queryAt;
-            ResultAt = resultAt;
+            QueryMatchAt = queryMatchAt;
+            TrackMatchAt = trackMatchAt;
             HammingSimilarity = hammingSimilarity;
         }
 
-        public float QueryAt { get; }
+        public float QueryMatchAt { get; }
 
-        public float ResultAt { get; }
+        public float TrackMatchAt { get; }
 
         public int HammingSimilarity { get; }
     }
